@@ -6,7 +6,7 @@ A local Pi extension that wraps the runtime of [`pi-dynamic-workflows`](https://
 - **Footer status** — `◆ N workflows · M agents running` (via `ctx.ui.setStatus`).
 - **Widget** above the footer — each run's phase, progress, elapsed time and live agents.
 - **Keyboard focus** — `↓` in an empty editor selects a workflow; `↑/↓` move, `Enter` opens its agents panel, `x` stops it, `Esc` returns to the editor.
-- **`/workflows` panel** (also `alt+w`) — runs → phases/agents (status, time, tool calls, tokens, current activity) → agent transcript.
+- **`/workflows` panel** (also `alt+w`) — runs → phases/agents (status, time, tool calls, tokens, current activity) → agent transcript. Opens in place of the editor by the chat line, like Claude Code (configurable, see below).
 - **Stopping** — `x` in the widget/panel, `/workflows stop [id]`, or the `workflow_stop` tool.
 
 ## Install
@@ -20,13 +20,13 @@ Paths below use `<agent-dir>`, Pi's config directory:
 
 If you set `PI_CODING_AGENT_DIR`, use that directory instead.
 
-1. Install the runtime package as a personal (not `--local`) package:
+1. Install the runtime package (personal or `--local` both work):
 
    ```sh
    pi install npm:pi-dynamic-workflows@1.0.1
    ```
 
-2. Clone this repo into `<agent-dir>/extensions/workflows`:
+2. Clone this repo into an extensions directory, for example `<agent-dir>/extensions/workflows`:
 
    ```sh
    # macOS / Linux
@@ -47,7 +47,23 @@ If you set `PI_CODING_AGENT_DIR`, use that directory instead.
 
 4. Run `/reload` or restart Pi.
 
-The extension imports the package source by relative path (`../../npm/node_modules/pi-dynamic-workflows/src/`), because the published package ships without `dist/`. Keep both locations as described: the repo at `<agent-dir>/extensions/workflows` and the package installed personally, which puts it under `<agent-dir>/npm/node_modules`.
+The extension finds the installed package at startup through Pi's package manager. It checks project settings first, then user settings, so npm, git and local-path sources all work. To point it somewhere else, set `PI_DYNAMIC_WORKFLOWS_DIR` to the package directory. If the package can't be found, Pi shows an error at startup and the `workflow` tool returns an install hint.
+
+## Configuration
+
+Choose where the `/workflows` panel opens:
+
+| Command | Placement |
+|---|---|
+| `/workflows placement inline` | In place of the editor, by the chat line (default, like Claude Code) |
+| `/workflows placement bottom` | Floating overlay along the bottom of the terminal |
+| `/workflows placement center` | Floating overlay in the middle of the terminal |
+
+Run `/workflows placement` with no option to see the current setting. The choice is saved to `<agent-dir>/pi-workflows.json`:
+
+```json
+{ "panelPlacement": "inline" }
+```
 
 ## Files
 
@@ -57,6 +73,7 @@ The extension imports the package source by relative path (`../../npm/node_modul
 | `registry.ts` | In-memory run/agent state |
 | `live-agent.ts` | Subagent runner that streams tool calls, tokens and text to the UI |
 | `render.ts` | Footer, widget and row renderers |
+| `runtime.ts` | Locates and loads the `pi-dynamic-workflows` runtime |
 | `panel.ts` | `/workflows` overlay |
 
 In non-interactive mode (`pi -p`) workflows run in the foreground and return their result directly.

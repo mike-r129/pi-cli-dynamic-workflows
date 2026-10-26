@@ -1,8 +1,8 @@
 /**
  * Claude-Code-style dynamic workflows for Pi.
  *
- * Wraps the runtime of the pi-dynamic-workflows package (whose own extension is
- * disabled in settings.json) and adds:
+ * Wraps the runtime of the pi-dynamic-workflows package (located at load time by
+ * runtime.ts; its own extension is disabled in settings.json) and adds:
  *   - background runs: `workflow` returns a run id immediately; a notification
  *     message arrives and triggers a turn when the run settles
  *   - footer status "◆ N workflows · M agents running" (via setStatus)
@@ -12,24 +12,74 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { defineTool } from "@earendil-works/pi-coding-agent";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { defineTool, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Box, matchesKey, type TUI, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { parseWorkflowScript, runWorkflow } from "../../npm/node_modules/pi-dynamic-workflows/src/workflow.ts";
-import { createWorkflowTool } from "../../npm/node_modules/pi-dynamic-workflows/src/workflow-tool.ts";
 import { type AgentObserver, LiveWorkflowAgent } from "./live-agent.ts";
 import { WorkflowsPanel } from "./panel.ts";
 import { type AgentRecord, WorkflowRegistry, type WorkflowRun } from "./registry.ts";
 import { elapsed, footerStatus, widgetLines } from "./render.ts";
+import { loadRuntime, type WorkflowRuntime } from "./runtime.ts";
 
 const KEY = "workflows";
 const PAINT_MS = 250;
 const LINGER_MS = 10_000;
 const MAX_RESULT_CHARS = 20_000;
 
-export default function extension(pi: ExtensionAPI) {
+/**
+ * Where the /workflows panel opens:
+ *   inline — in place of the editor, by the chat line (Claude Code style, default)
+ *   bottom — floating overlay anchored to the bottom of the terminal
+ *   center — floating overlay in the middle of the terminal
+ */
+const PLACEMENTS = ["inline", "bottom", "center"] as const;
+type Placement = (typeof PLACEMENTS)[number];
+interface WorkflowsConfig {
+	panelPlacement: Placement;
+}
+const CONFIG_FILE = "pi-workflows.json";
+
+function loadConfig(): WorkflowsConfig {
+	try {
+		const raw = JSON.parse(readFileSync(join(getAgentDir(), CONFIG_FILE), "utf8"));
+		if (PLACEMENTS.includes(raw.panelPlacement)) return { panelPlacement: raw.panelPlacement };
+	} catch {}
+	return { panelPlacement: "inline" };
+}
+
+function saveConfig(config: WorkflowsConfig) {
+	writeFileSync(join(getAgentDir(), CONFIG_FILE), `${JSON.stringify(config, null, 2)}\n`);
+}
+
+export default async function extension(pi: ExtensionAPI) {
+	let runtime: WorkflowRuntime;
+	try {
+		runtime = await loadRuntime();
+	} catch (error) {
+		// Don't throw from the factory (print mode hangs); surface the install hint instead.
+		const message = `workflows extension disabled: ${error instanceof Error ? error.message : String(error)}`;
+		pi.registerTool(
+			defineTool({
+				name: "workflow",
+				label: "Workflow",
+				description: "Unavailable: the pi-dynamic-workflows runtime package is not installed.",
+				parameters: Type.Object({ script: Type.String() }),
+				async execute() {
+					throw new Error(message);
+				},
+			}),
+		);
+		pi.on("session_start", (_event, ctx) => {
+			if (ctx.hasUI) ctx.ui.notify(message, "error");
+		});
+		return;
+	}
+	const { parseWorkflowScript, runWorkflow } = runtime;
 	const registry = new WorkflowRegistry();
-	const base = createWorkflowTool();
+	const config = loadConfig();
+	const base = runtime.createWorkflowTool();
 	let ui: ExtensionContext | undefined;
 	let widgetTui: { requestRender(): void } | undefined;
 	let paintTimer: ReturnType<typeof setTimeout> | undefined;
@@ -177,7 +227,7 @@ export default function extension(pi: ExtensionAPI) {
 			phases: (parsed.meta.phases ?? []).map((p) => p.title),
 		});
 		const bound = new Set<AgentRecord>();
-		const agent = new LiveWorkflowAgent(ctx.cwd, { modelRegistry: ctx.modelRegistry, model: ctx.model }, observerFor(run, bound));
+		const agent = new LiveWorkflowAgent(ctx.cwd, { modelRegistry: ctx.modelRegistry, model: ctx.model }, observerFor(run, bound), runtime.createStructuredOutputTool);
 
 		const promise = runWorkflow(script, {
 			cwd: ctx.cwd,
@@ -339,14 +389,30 @@ export default function extension(pi: ExtensionAPI) {
 		if (!ctx.hasUI) return;
 		await ctx.ui.custom<void>(
 			(tui, theme, _keybindings, done) => new WorkflowsPanel(registry, theme, () => tui.requestRender(), () => done(undefined), runId),
-			{ overlay: true, overlayOptions: { width: "85%", anchor: "center" } },
+			config.panelPlacement === "inline"
+				? {}
+				: {
+						overlay: true,
+						overlayOptions:
+							config.panelPlacement === "bottom" ? { width: "100%", anchor: "bottom-center" } : { width: "85%", anchor: "center" },
+					},
 		);
 	};
 
 	pi.registerCommand("workflows", {
-		description: "Show background workflows (/workflows [runId] · /workflows stop [runId])",
+		description: "Show background workflows (/workflows [runId] · stop [runId] · placement inline|bottom|center)",
 		handler: async (args, ctx) => {
 			const [sub, id] = args.trim().split(/\s+/);
+			if (sub === "placement") {
+				if (!PLACEMENTS.includes(id as Placement)) {
+					ctx.ui.notify(`Panel placement: ${config.panelPlacement} (options: ${PLACEMENTS.join(", ")})`, "info");
+					return;
+				}
+				config.panelPlacement = id as Placement;
+				saveConfig(config);
+				ctx.ui.notify(`Workflows panel will open ${id}`, "info");
+				return;
+			}
 			if (sub === "stop") {
 				const ids = id ? [id] : registry.running().map((r) => r.id);
 				const stopped = ids.filter((x) => registry.stop(x));

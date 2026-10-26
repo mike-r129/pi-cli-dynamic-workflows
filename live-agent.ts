@@ -13,7 +13,7 @@ import {
 	SettingsManager,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { createStructuredOutputTool } from "../../npm/node_modules/pi-dynamic-workflows/src/structured-output.ts";
+import type { WorkflowRuntime } from "./runtime.ts";
 
 export interface AgentObserver {
 	onToolStart(toolName: string, args: unknown): void;
@@ -36,6 +36,7 @@ export class LiveWorkflowAgent {
 		private readonly sessionOptions: Partial<CreateAgentSessionOptions>,
 		/** Returns the observer for the agent with this label (called once per run). */
 		private readonly observerFor: (label: string | undefined) => AgentObserver | undefined,
+		private readonly createStructuredOutputTool: WorkflowRuntime["createStructuredOutputTool"],
 	) {}
 
 	async run(prompt: string, options: LiveRunOptions = {}): Promise<unknown> {
@@ -54,7 +55,7 @@ export class LiveWorkflowAgent {
 		const capture = { called: false, value: undefined as unknown };
 		const customTools: ToolDefinition[] = [...createCodingTools(this.cwd)];
 		if (options.schema) {
-			customTools.push(createStructuredOutputTool({ schema: options.schema, capture }) as unknown as ToolDefinition);
+			customTools.push(this.createStructuredOutputTool({ schema: options.schema, capture }) as unknown as ToolDefinition);
 		}
 
 		const agentDir = getAgentDir();
