@@ -11,17 +11,43 @@ A local Pi extension that wraps the runtime of [`pi-dynamic-workflows`](https://
 
 ## Install
 
-1. Install the runtime package: `pi install npm:pi-dynamic-workflows@1.0.1`.
-2. Clone this repo to `~/.pi/agent/extensions/workflows/`.
-3. Disable the package's own extension in `~/.pi/agent/settings.json` so there is only one `workflow` tool:
+Paths below use `<agent-dir>`, Pi's config directory:
+
+| Platform | Default `<agent-dir>` |
+|---|---|
+| macOS / Linux | `~/.pi/agent` |
+| Windows | `%USERPROFILE%\.pi\agent` |
+
+If you set `PI_CODING_AGENT_DIR`, use that directory instead.
+
+1. Install the runtime package as a personal (not `--local`) package:
+
+   ```sh
+   pi install npm:pi-dynamic-workflows@1.0.1
+   ```
+
+2. Clone this repo into `<agent-dir>/extensions/workflows`:
+
+   ```sh
+   # macOS / Linux
+   git clone https://github.com/mike-r129/py-cli-dynamic-workflows.git "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/workflows"
+   ```
+
+   ```powershell
+   # Windows (PowerShell)
+   $agentDir = if ($env:PI_CODING_AGENT_DIR) { $env:PI_CODING_AGENT_DIR } else { "$HOME\.pi\agent" }
+   git clone https://github.com/mike-r129/py-cli-dynamic-workflows.git "$agentDir\extensions\workflows"
+   ```
+
+3. In `<agent-dir>/settings.json`, turn off the package's own extension so there is only one `workflow` tool:
 
    ```json
    "packages": [{ "source": "npm:pi-dynamic-workflows@1.0.1", "extensions": [] }]
    ```
 
-4. `/reload` or restart Pi.
+4. Run `/reload` or restart Pi.
 
-The extension imports the package source by relative path (`../../npm/node_modules/pi-dynamic-workflows/src/`), since the published package ships without `dist/`.
+The extension imports the package source by relative path (`../../npm/node_modules/pi-dynamic-workflows/src/`), because the published package ships without `dist/`. Keep both locations as described: the repo at `<agent-dir>/extensions/workflows` and the package installed personally, which puts it under `<agent-dir>/npm/node_modules`.
 
 ## Files
 
