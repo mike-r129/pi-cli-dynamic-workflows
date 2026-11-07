@@ -30,13 +30,13 @@ If you set `PI_CODING_AGENT_DIR`, use that directory instead.
 
    ```sh
    # macOS / Linux
-   git clone https://github.com/mike-r129/py-cli-dynamic-workflows.git "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/workflows"
+   git clone https://github.com/mike-r129/pi-cli-dynamic-workflows.git "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/workflows"
    ```
 
    ```powershell
    # Windows (PowerShell)
    $agentDir = if ($env:PI_CODING_AGENT_DIR) { $env:PI_CODING_AGENT_DIR } else { "$HOME\.pi\agent" }
-   git clone https://github.com/mike-r129/py-cli-dynamic-workflows.git "$agentDir\extensions\workflows"
+   git clone https://github.com/mike-r129/pi-cli-dynamic-workflows.git "$agentDir\extensions\workflows"
    ```
 
 3. In `<agent-dir>/settings.json`, turn off the package's own extension so there is only one `workflow` tool:
@@ -77,3 +77,7 @@ Run `/workflows placement` with no option to see the current setting. The choice
 | `panel.ts` | `/workflows` overlay |
 
 In non-interactive mode (`pi -p`) workflows run in the foreground and return their result directly.
+
+## License
+
+MIT, see [LICENSE](LICENSE). `live-agent.ts` is derived from [`pi-dynamic-workflows`](https://github.com/Michaelliv/pi-dynamic-workflows) (MIT).

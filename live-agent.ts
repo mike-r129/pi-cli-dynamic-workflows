@@ -1,6 +1,8 @@
 /**
  * Fork of pi-dynamic-workflows' WorkflowAgent that subscribes to each subagent
  * session so the UI can show live tool calls, tokens and text.
+ *
+ * Derived from pi-dynamic-workflows (MIT, Copyright (c) michaelliv); see LICENSE.
  */
 
 import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
